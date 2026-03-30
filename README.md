@@ -1,102 +1,117 @@
 # BitDive Skills
 
-Public Codex skills and Claude Code subagents for BitDive integration,
-trace analysis, and replay-test workflows.
+Public BitDive workflows packaged in two formats:
 
-## What This Repository Contains
+- `skills/` for portable agent skills installed with `npx skills add`
+- `claude/agents/` for Claude Code subagents
 
-This repository packages the same BitDive workflows in two GitHub-friendly
-formats:
+The set is focused on BitDive integration, runtime trace analysis, and
+trace-based regression workflows.
+
+## Repository Layout
 
 ```text
 skills/<skill-name>/SKILL.md
 skills/<skill-name>/agents/openai.yaml
-.claude/agents/<agent-name>.md
+claude/agents/<agent-name>.md
 ```
 
-The skills are grouped around four common jobs:
+## Included Workflows
 
-- onboarding BitDive into Spring Boot services
-- comparing runtime traces and debugging behavior drift
-- managing replay baselines and test groups
-- connecting services to the right BitDive environment
-
-## Included Skills
-
-| Skill | Purpose |
+| Workflow | Purpose |
 |---|---|
-| `add-bitdive-spring` | Add BitDive producer and optional replay support to a Spring Boot service |
-| `bitdive-overview` | Choose the right BitDive MCP tool for discovery, inspection, and updates |
-| `bitdive-trace-comparison` | Compare traces and locate the exact point of behavior drift |
-| `bitdive-dev-workflow` | Run a phased BitDive development workflow with human checkpoints |
-| `bitdive-test-management` | Create, wire, repair, refresh, and rebuild replay groups |
-| `bitdive-docker-networking` | Connect Dockerized services to cloud or self-hosted BitDive |
+| [`add-bitdive-spring`](skills/add-bitdive-spring/SKILL.md) | Add BitDive producer and optional replay support to a Spring Boot service |
+| [`bitdive-overview`](skills/bitdive-overview/SKILL.md) | Choose the right BitDive MCP tool for discovery, inspection, and updates |
+| [`bitdive-trace-comparison`](skills/bitdive-trace-comparison/SKILL.md) | Compare traces and locate the exact point of behavior drift |
+| [`bitdive-dev-workflow`](skills/bitdive-dev-workflow/SKILL.md) | Run a phased BitDive development workflow with human checkpoints |
+| [`bitdive-test-management`](skills/bitdive-test-management/SKILL.md) | Create, wire, repair, refresh, and rebuild replay groups |
+| [`bitdive-docker-networking`](skills/bitdive-docker-networking/SKILL.md) | Connect Dockerized services to cloud or self-hosted BitDive |
 
 ## Installation
 
-### Codex / OpenAI Skills
+### Codex
 
-#### User-wide install
-
-Copy one or more skill directories into `~/.codex/skills/`:
+Install the full portable skill set into Codex:
 
 ```bash
-mkdir -p ~/.codex/skills
-cp -R skills/<skill-name> ~/.codex/skills/
+npx skills add bitDive/bitdive-skills --all -a codex
 ```
 
-#### Repo-local install
-
-Copy one or more skill directories into a repository-local `.agents/skills/`
-folder:
+Global install:
 
 ```bash
-mkdir -p .agents/skills
-cp -R skills/<skill-name> .agents/skills/
+npx skills add bitDive/bitdive-skills --all -g -a codex
 ```
 
-Restart Codex after installing new skills so they are picked up cleanly.
+### Claude Code
 
-### Claude Code Subagents
-
-This repository also includes Claude Code project subagents in `.claude/agents/`.
-
-#### Project install
-
-Copy one or more agent files into your project's `.claude/agents/` directory:
+Install the same portable skill set into Claude Code:
 
 ```bash
+npx skills add bitDive/bitdive-skills --all -a claude-code
+```
+
+Global install:
+
+```bash
+npx skills add bitDive/bitdive-skills --all -g -a claude-code
+```
+
+### Codex + Claude Code
+
+Install the full portable set into both agents with one command:
+
+```bash
+npx skills add bitDive/bitdive-skills --all -a codex -a claude-code
+```
+
+Global install:
+
+```bash
+npx skills add bitDive/bitdive-skills --all -g -a codex -a claude-code
+```
+
+### Claude Code Native Subagents
+
+Claude-native subagents also live in `claude/agents/`.
+
+Clone the repository, enter it, then copy the subagents you want into a Claude
+Code project:
+
+```bash
+git clone https://github.com/bitDive/bitdive-skills.git
+cd bitdive-skills
 mkdir -p /path/to/project/.claude/agents
-cp .claude/agents/<agent-name>.md /path/to/project/.claude/agents/
+cp claude/agents/<agent-name>.md /path/to/project/.claude/agents/
 ```
 
-#### User-wide install
-
-Copy one or more agent files into `~/.claude/agents/`:
+Optional user-wide install:
 
 ```bash
 mkdir -p ~/.claude/agents
-cp .claude/agents/<agent-name>.md ~/.claude/agents/
+cp claude/agents/<agent-name>.md ~/.claude/agents/
 ```
 
-Claude Code uses subagents as Markdown files with YAML frontmatter. In this
-repository, Claude support is implemented as subagents rather than slash
-commands because that is the closest analogue to task-specific skills.
+Use this path only if you specifically want native Claude subagents. For
+one-command install across agents, use the `skills/` format above.
+
+## Which Format To Use
+
+- Use the `skills/` format if you want `npx skills add bitDive/bitdive-skills` for Codex, Claude Code, or both.
+- Use `claude/agents/` only if you specifically want native Claude Code subagents in `.claude/agents/`.
+- The workflow names are intentionally aligned across both formats.
 
 ## Recommended Environment
 
-Most of these skills are most useful when:
+These workflows are most useful when:
 
 - BitDive MCP is configured and reachable
 - the target service is already instrumented or about to be instrumented
 - the repository has a real module-scoped test command you can rerun quickly
 
-These skills are still useful without a full BitDive setup, but they are
-designed for runtime-first, BitDive-enabled workflows.
-
 ## Notes
 
 - `agents/openai.yaml` is included for each skill so the set is ready for UI-facing use.
-- `.claude/agents/` contains the parallel Claude Code format for the same workflows.
-- The skills are intentionally text-first and repository-agnostic. Project-specific names and private paths were removed.
+- Claude support is stored as visible source files in `claude/agents/`, not hidden repo-local config.
+- The workflows are text-first and repository-agnostic. Project-specific names and private paths were removed.
 - If you want to publish under another license, replace the root `LICENSE` file before pushing the repository.
