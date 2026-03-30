@@ -29,18 +29,22 @@ claude/agents/<agent-name>.md
 
 ## Installation
 
+`skills` CLI treats `--all` as "install all skills to all agents". To install
+the full BitDive set only for selected agents, use `--skill '*'` with explicit
+`-a` flags.
+
 ### Codex
 
 Install the full portable skill set into Codex:
 
 ```bash
-npx skills add bitDive/bitdive-skills --all -a codex
+npx skills add bitDive/bitdive-skills --skill '*' -a codex
 ```
 
 Global install:
 
 ```bash
-npx skills add bitDive/bitdive-skills --all -g -a codex
+npx skills add bitDive/bitdive-skills --skill '*' -g -a codex
 ```
 
 ### Claude Code
@@ -48,13 +52,13 @@ npx skills add bitDive/bitdive-skills --all -g -a codex
 Install the same portable skill set into Claude Code:
 
 ```bash
-npx skills add bitDive/bitdive-skills --all -a claude-code
+npx skills add bitDive/bitdive-skills --skill '*' -a claude-code
 ```
 
 Global install:
 
 ```bash
-npx skills add bitDive/bitdive-skills --all -g -a claude-code
+npx skills add bitDive/bitdive-skills --skill '*' -g -a claude-code
 ```
 
 ### Codex + Claude Code
@@ -62,13 +66,13 @@ npx skills add bitDive/bitdive-skills --all -g -a claude-code
 Install the full portable set into both agents with one command:
 
 ```bash
-npx skills add bitDive/bitdive-skills --all -a codex -a claude-code
+npx skills add bitDive/bitdive-skills --skill '*' -a codex -a claude-code
 ```
 
 Global install:
 
 ```bash
-npx skills add bitDive/bitdive-skills --all -g -a codex -a claude-code
+npx skills add bitDive/bitdive-skills --skill '*' -g -a codex -a claude-code
 ```
 
 ### Claude Code Native Subagents
