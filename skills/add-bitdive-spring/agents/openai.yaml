@@ -1,0 +1,6 @@
+interface:
+  display_name: "Add BitDive to Spring"
+  short_description: "Add BitDive to a Spring Boot service"
+  default_prompt: "Use $add-bitdive-spring to instrument this Spring Boot service with BitDive and wire replay support if needed."
+policy:
+  allow_implicit_invocation: true

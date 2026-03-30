@@ -1,0 +1,6 @@
+interface:
+  display_name: "BitDive Trace Comparison"
+  short_description: "Compare BitDive traces precisely"
+  default_prompt: "Use $bitdive-trace-comparison to compare these BitDive traces and locate the exact behavior drift."
+policy:
+  allow_implicit_invocation: true

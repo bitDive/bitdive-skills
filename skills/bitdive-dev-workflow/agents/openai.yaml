@@ -1,0 +1,6 @@
+interface:
+  display_name: "BitDive Dev Workflow"
+  short_description: "Follow a phased BitDive dev workflow"
+  default_prompt: "Use $bitdive-dev-workflow to drive this change through baseline study, trace comparison, and confirmed baseline refresh."
+policy:
+  allow_implicit_invocation: true

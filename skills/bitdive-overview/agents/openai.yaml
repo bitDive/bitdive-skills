@@ -1,0 +1,6 @@
+interface:
+  display_name: "BitDive Overview"
+  short_description: "Choose the right BitDive MCP tool"
+  default_prompt: "Use $bitdive-overview to decide which BitDive MCP tool to use for this task."
+policy:
+  allow_implicit_invocation: true

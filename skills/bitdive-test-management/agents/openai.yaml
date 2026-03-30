@@ -1,0 +1,6 @@
+interface:
+  display_name: "BitDive Test Management"
+  short_description: "Manage BitDive replay test groups"
+  default_prompt: "Use $bitdive-test-management to wire, refresh, or rebuild BitDive replay test groups for this service."
+policy:
+  allow_implicit_invocation: true
