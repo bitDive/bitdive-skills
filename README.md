@@ -33,6 +33,20 @@ claude/agents/<agent-name>.md
 the full BitDive set only for selected agents, use `--skill '*'` with explicit
 `-a` flags.
 
+### Interactive install
+
+Let the installer ask which agent you want to use:
+
+```bash
+npx skills add bitDive/bitdive-skills --skill '*'
+```
+
+Global interactive install:
+
+```bash
+npx skills add bitDive/bitdive-skills --skill '*' -g
+```
+
 ### Codex
 
 Install the full portable skill set into Codex:
