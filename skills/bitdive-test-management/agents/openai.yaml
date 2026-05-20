@@ -1,6 +1,6 @@
 interface:
   display_name: "BitDive Test Management"
   short_description: "Manage BitDive replay test groups"
-  default_prompt: "Use $bitdive-test-management to wire, refresh, or rebuild BitDive replay test groups for this service."
+  default_prompt: "Use $bitdive-test-management to wire, refresh, repair, or rebuild BitDive replay test groups. For PR gates, run and report UNIT and COMPONENT replay suites separately on baseline/main and PR; triage red baselines before refreshing."
 policy:
   allow_implicit_invocation: true

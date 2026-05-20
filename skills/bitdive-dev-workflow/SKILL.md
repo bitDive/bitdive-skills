@@ -3,8 +3,8 @@ name: bitdive-dev-workflow
 description: >
   Generic BitDive development workflow with explicit human checkpoints: baseline
   study, iterative implementation with trace and test analysis, then baseline
-  refresh only after user confirmation. Applies to any Spring Boot service
-  instrumented with BitDive.
+  refresh only after user confirmation. Applies to any project or service with
+  BitDive traces and replay tests.
 ---
 
 # BitDive Development Workflow
@@ -35,21 +35,24 @@ Mandatory rule:
 - Stop after Phase 1 and provide a report.
 - Stop after Phase 2 and provide a report.
 - Do not refresh replay tests until a human explicitly confirms the change.
-- Work with the replay UUID set that is already active in `TestControllerTestAbstract.java`.
+- Work with the replay group ID set that is already active in the repository's test wiring.
 - Do not create new test groups unless a human explicitly asks for new groups or the existing groups are unusable.
 
 ---
 
 ## Phase 1: Baseline Study And Report
 
-Find the active test group UUIDs in the test configuration class (e.g., `TestControllerTestAbstract.java`).
+Find the active test group IDs in the repository's replay-test wiring. Examples:
+- Java projects may use a replay test class.
+- Other repositories may store group IDs in config, test fixtures, scripts, or CI env.
 
-Treat those UUIDs as the active baseline for the whole workflow.
+Treat those IDs as the active baseline for the whole workflow.
 Do not switch to a different set of groups during normal development flow.
 
-Run the tests:
+Detect and run the repository's real test command. Examples:
+
 ```bash
-./mvnw.cmd test
+<test-command>
 ```
 
 Then inspect results in BitDive:
@@ -68,7 +71,7 @@ Phase 1 report must include:
 - Response body (JSON schema and values)
 - Number of SQL queries and REST calls
 - Any existing warnings or performance issues
-- active replay UUIDs for the affected module
+- active replay group IDs for the affected module or service
 
 Stop here and report. Do not implement yet unless the user asks to continue.
 
@@ -106,18 +109,14 @@ find_trace_summary(call_id="<after-call-id>")
 compare_traces(before_call_id="<before-id>", after_call_id="<after-id>")
 ```
 
-```
-compare_traces(before_call_id="<before-id>", after_call_id="<after-id>")
-```
+Refer to **`bitdive-trace-comparison`** for detailed guidance on analyzing contract drift and persistence changes.
 
 Verify:
 - Only the intended field / behavior changed.
 - No unexpected errors or performance regressions appeared.
 - SQL query count did not increase unexpectedly.
 
-```bash
-./mvnw.cmd test
-```
+Run the same `<test-command>` used in Phase 1.
 
 A test referencing the affected method should now **fail** with a clear Expected vs Actual diff.
 
@@ -149,9 +148,20 @@ is correct and should become the new baseline.
 Update only the affected method's baseline when possible:
 
 ```
-regenerate_tests_by_call_for_test_script(
-  script_data_test_id="<method-test-id>",
-  new_call_ids=["<after-call-id>"]
+replace_test_with_latest_trace(
+  script_data_test_id="<method-entry-id>",
+  module_name="<MODULE>",
+  service_name="<SERVICE>"
+)
+```
+
+If several entries failed because of the same accepted behavior:
+
+```
+update_failed_tests_in_group(
+  test_script_id="<uuid>",
+  module_name="<MODULE>",
+  service_name="<SERVICE>"
 )
 ```
 
@@ -164,12 +174,10 @@ update_existing_test_group(
 )
 ```
 
-Do not create a new UNIT/COMPONENT pair in Phase 3 unless the human explicitly
-requested a rebuild or the existing groups are dead.
+Do not create new test groups in Phase 3 unless the human explicitly requested
+a rebuild or the existing groups are dead.
 
-```bash
-./mvnw.cmd test
-```
+Run the same `<test-command>` again.
 
 Then verify in BitDive:
 ```
@@ -181,7 +189,7 @@ get_test_failure_details(test_script_id="<uuid>")
 Phase 3 report must include:
 - which replay entries were refreshed
 - the new call IDs used
-- final Maven test status
+- final test command status
 - confirmation that the baseline is green again
 
 ---
@@ -190,7 +198,8 @@ Phase 3 report must include:
 
 | Situation | Tool |
 |---|---|
-| One method changed intentionally | `regenerate_tests_by_call_for_test_script` |
+| One method changed intentionally | `replace_test_with_latest_trace` |
+| Only currently failed methods should refresh | `update_failed_tests_in_group` |
 | Whole service refresh expected | `update_existing_test_group` |
 | No test group exists yet | `auto_generate_tests_for_service` |
 

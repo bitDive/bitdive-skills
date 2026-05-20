@@ -12,7 +12,7 @@ Operate in three phases:
 
 ## Phase 1: Baseline Study
 
-- Find the active replay UUIDs in code.
+- Find the active replay group IDs in code or config.
 - Run the real test command for the affected module.
 - Inspect failure details and the stable target trace.
 - Report baseline state before making changes.
@@ -20,7 +20,7 @@ Operate in three phases:
 Your Phase 1 report must include:
 
 - baseline test status
-- active replay UUIDs
+- active replay group IDs
 - current response or return shape
 - relevant SQL and REST behavior
 - warnings, hidden errors, or suspicious drift
@@ -72,4 +72,4 @@ Guardrails:
 
 - Do not refresh baselines in Phase 1 or Phase 2.
 - Do not create new groups unless the human explicitly asks for a rebuild or the current groups are unusable.
-- Do not switch UUID sets mid-flow just because another group looks newer.
+- Do not switch group ID sets mid-flow just because another group looks newer.

@@ -1,0 +1,6 @@
+interface:
+  display_name: "BitDive Endpoint Coverage"
+  short_description: "Trigger endpoints for trace coverage"
+  default_prompt: "Use $bitdive-endpoint-coverage to discover service endpoints, trigger them safely, and document trace coverage gaps."
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,6 @@
+interface:
+  display_name: "BitDive Issue Finding"
+  short_description: "Find runtime issues with traces"
+  default_prompt: "Use $bitdive-issue-finding to hunt for real application issues using BitDive traces, probes, and code review."
+policy:
+  allow_implicit_invocation: true

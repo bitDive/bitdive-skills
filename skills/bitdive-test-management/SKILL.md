@@ -1,147 +1,109 @@
 ---
 name: bitdive-test-management
 description: >
-  Guide for working with BitDive replay test groups in repositories that use a
-  UNIT plus COMPONENT convention. Covers when to update vs recreate groups, how
-  to trigger fresh traces, and how TestControllerTestAbstract can be structured
-  in each module.
+  Guide for working with BitDive replay test groups in any repository. Covers
+  discovering active group IDs, choosing update vs recreate, repairing failed
+  baselines, wiring replay tests into the project's real test command, and
+  avoiding accidental broad baseline refreshes.
 ---
 
 # BitDive Test Management
 
 Use this skill when you need to inspect, refresh, recreate, or wire BitDive replay
-tests for a module in a repository that follows this pattern.
+tests for a project, module, service, or method.
 
-> [!IMPORTANT]
-> In the source repo, the practical pair is **UNIT + COMPONENT**.
-> Do not treat `INTEGRATION` as the default target for replay coverage here.
+## Discover The Project Convention
 
----
+Do not assume a fixed test class name, package, build tool, or group convention.
 
-## Canonical Shape In Code
+Find:
+- Active BitDive group IDs in source, config, test fixtures, scripts, or CI files.
+- The real test command from package scripts, build wrappers, Makefiles, CI config, or docs.
+- Runtime `module_name` and `service_name` from BitDive heatmaps instead of deployment names.
+- Whether the project uses `UNIT`, `COMPONENT`, `INTEGRATION`, or another grouping convention.
 
-Each module should expose replay tests through a single package-private Java class:
+Useful local searches:
 
-`src/test/java/com/microservices/<module>/TestControllerTestAbstract.java`
+```bash
+rg "ReplayTest|BitDive|test_script|testScript|fromRestApi|scriptData|UUID"
+```
 
-Use the same shape as the source-repo example below:
+Treat the IDs referenced by the real test command as the active baseline.
+
+## Wiring Patterns
+
+Prefer one stable replay entrypoint per module or service. The exact shape is
+project-specific.
+
+Java example:
 
 ```java
-package com.microservices.<module>;
-
-import io.bitdive.replay.ReplayTestBase;
-import io.bitdive.replay.dto.ReplayTestConfiguration;
-import io.bitdive.replay.dto.ReplayTestUtils;
-
-import java.util.List;
-
 class TestControllerTestAbstract extends ReplayTestBase {
 
     @Override
     protected List<ReplayTestConfiguration> getTestConfigurations() {
         return ReplayTestUtils.fromRestApiWithJsonContentConfigFile(
                 java.util.Arrays.asList(
-                        "<unit-uuid>",      // <Module> UNIT UUID
-                        "<component-uuid>"  // <Module> COMPONENT UUID
+                        "<group-uuid-1>",
+                        "<group-uuid-2>"
                 ));
     }
 }
 ```
 
 Rules:
-- One file, not separate `UnitReplayTest` / `ComponentReplayTest` classes.
-- Keep it package-private, same as `report`.
-- Put UNIT UUID first, COMPONENT UUID second.
-- Maven verification command:
-
-```bash
-./mvnw.cmd -pl <module> test
-```
-
-Alternative wiring:
-- If the module intentionally should execute every BitDive test group currently registered for that service, `ReplayTestUtils.fromRestApiWithJsonContentConfigFileAllTest()` is available.
-- In repos with this pattern, explicit UUIDs are the safer default because they keep Maven aligned with the intended active UNIT and COMPONENT groups.
-
----
-
-## UNIT Vs COMPONENT
-
-Use `UNIT` for:
-- service-layer logic
-- mapper coverage
-- repository-stubbed replay
-- controller flows that stay local to the module
-
-Use `COMPONENT` for:
-- module flows that include real downstream HTTP or message boundaries captured in the trace
-- end-to-end behavior within the application that crosses service boundaries
-
-If your repo uses the same convention and someone says "integration replay tests", treat that as:
-
-`COMPONENT`
-
-Do not default to BitDive `INTEGRATION` unless there is a very explicit reason.
-
----
+- Keep group IDs explicit unless the team intentionally wants "all groups".
+- Keep code wiring aligned with BitDive group state.
+- Do not switch to a newer-looking group unless it is wired into the test command.
+- Use the repository's existing package, naming, and test style.
 
 ## Default Workflow
 
 Follow this sequence:
 
-1. Find the active UUIDs in `TestControllerTestAbstract.java`.
-2. Run module tests and confirm current baseline is green.
-3. Inspect or generate the needed fresh traces.
-4. Prefer updating the existing groups.
-5. Re-run Maven and verify green.
+1. Find active group IDs in the repository.
+2. Run the real test command and capture current status.
+3. Inspect failures with `get_test_failure_details`.
+4. Trigger or find fresh successful traces for the affected methods.
+5. Prefer updating existing groups over creating new ones.
+6. Re-run the same test command.
+7. Inspect group metadata if a targeted update could have duplicated entries.
 
-Canonical commands/tools:
-
-```bash
-./mvnw.cmd -pl <module> test
-```
+Canonical MCP tools:
 
 ```text
+get_all_test_scripts()
+get_script_data(test_script_id="<uuid>")
+get_script_data_test(test_script_data_id="<id>")
 get_test_failure_details(test_script_id="<uuid>")
 get_last_calls(module_name="<module>", service_name="<service>")
 find_trace_summary(call_id="<call-id>")
-regenerate_tests_by_call_for_test_script(...)
-update_existing_test_group(...)
+replace_test_with_latest_trace(script_data_test_id="<method-entry-id>", module_name="<module>", service_name="<service>")
+update_failed_tests_in_group(test_script_id="<uuid>", module_name="<module>", service_name="<service>")
+update_existing_test_group(test_script_id="<uuid>", module_name="<module>", service_name="<service>")
+create_test_group(name="<name>", test_type="<type>", call_id_list=[...])
+auto_generate_tests_for_service(module_name="<module>", service_name="<service>", test_type="<type>")
 ```
 
-Operational notes:
-- Hidden errors inside a trace still matter even if the outer HTTP response is `200`.
-- Prefer deriving the real BitDive `module_name` and `service_name` from heatmap data instead of assuming they match Docker or Spring naming.
-
----
-
-## Update First, Recreate Rarely
+## Update vs Recreate
 
 Default rule:
+- Use `replace_test_with_latest_trace` for one changed method.
+- Use `update_failed_tests_in_group` when only currently failed entries should refresh.
+- Use `update_existing_test_group` for an intentional broad refresh of a whole service.
+- Use `auto_generate_tests_for_service` or `create_test_group` only when no valid group exists.
 
-- Prefer `regenerate_tests_by_call_for_test_script` for one changed method.
-- Prefer `update_existing_test_group` for a broad expected refresh.
-- Use `auto_generate_tests_for_service` or `create_test_group` only when no valid group exists yet.
+Recreate groups only when:
+- Prior groups were intentionally deleted.
+- Group IDs in code point to dead or unusable baselines.
+- The user explicitly asked for reset-and-rebuild.
+- The project is adding BitDive replay tests for the first time.
 
 Do not create extra groups just because a test failed once.
 
-> [!WARNING]
-> `regenerate_tests_by_call_for_test_script` can leave duplicate class or method
-> entries in script metadata. Maven may still go green, but the group can become
-> noisy. After targeted refresh, inspect `get_script_data` for the affected group.
-
-Recreate groups only when:
-- all prior groups were explicitly deleted
-- UUIDs in code point to dead or unusable baselines
-- the user explicitly asked for a reset-and-rebuild
-
-If existing groups are active, updating is the correct path.
-
----
-
 ## Timing Rules
 
-After triggering a new request, wait at least **30-45 seconds** before querying:
-
+After triggering a new request, wait at least 30-45 seconds before querying:
 - `get_last_calls`
 - `get_heatmap_for_service`
 - `find_trace_between_time`
@@ -149,58 +111,125 @@ After triggering a new request, wait at least **30-45 seconds** before querying:
 BitDive indexing is asynchronous. Missing fresh traces immediately after a request
 does not mean the request failed.
 
-If the new call still does not appear, retry with a narrow `find_trace_between_time` window instead of assuming capture is broken.
+If the new call still does not appear, retry with a narrow time window instead of
+assuming capture is broken.
 
----
+## Regression-Gated PR Test Runs
 
-## How To Rebuild A Module Baseline From Scratch
+For PR review, replay tests are a regression gate around runtime behavior. Run
+the project's available replay suites on the baseline branch and again on the PR
+branch. Report `UNIT` and `COMPONENT` separately; do not merge their counts.
 
-Use this only if the old groups are intentionally gone or unusable.
+Required result table:
 
-1. Verify the target service is healthy and reachable.
-2. Trigger the important endpoints for the module to generate fresh traces.
+| Suite | Scope | Baseline source | Main result | PR result | Interpretation |
+|---|---|---|---|---|---|
+| UNIT | <service/module/method scope> | <existing UNIT group or `not available`> | <pass/fail count or `not run`> | <pass/fail count or `not run`> | <method-level stability, expected drift, or gap> |
+| COMPONENT | <service/API/workflow scope> | <main branch 2xx traces or existing COMPONENT group> | <pass/fail count> | <pass/fail count> | <contract stability, expected bug-path fail, or regression> |
+
+Interpretation:
+
+| Main result | PR result | Meaning |
+|---|---|---|
+| PASS | PASS | stable contract; no regression for that replay path |
+| PASS | FAIL | behavior changed; expected only for an intentionally fixed bug path |
+| FAIL | PASS | previously broken path may be fixed by the PR |
+| FAIL | FAIL | pre-existing issue or unchanged broken behavior |
+
+Rules:
+- Run both `UNIT` and `COMPONENT` suites when the project has both.
+- Prefer COMPONENT groups built from clean main-branch `2xx` traces for API/runtime contract checks.
+- Do not build regression baselines from `500`/NPE traces unless the goal is explicitly to preserve an error contract.
+- A bug-path replay can be expected to fail on the PR branch when the PR intentionally changes the main behavior.
+- Any expected failure must be linked to trace or HTTP evidence proving the new behavior is the intended fix.
+- If a suite is unavailable or not run, keep the table row and mark it `not available` or `not run`.
+
+## Repairing A Red Baseline
+
+Use the smallest defensible repair. Do not regenerate or refresh broadly until
+you understand why the baseline is red.
+
+Fast triage:
+
+| Signal | Likely class | First action |
+|---|---|---|
+| `401`, `403`, token errors | auth or scope problem | fix auth, MCP, or runtime token setup |
+| dead UUID or script load failure | wiring problem | inspect active group IDs and BitDive scripts |
+| expected/actual mismatch | stale baseline or accepted behavior drift | compare old and fresh runtime behavior |
+| `ClassNotFound` or missing method | group wider than runtime scope | inspect group contents and module wiring |
+| `UnknownHost`, connection refused | environment problem | fix runtime services or network |
+| missing recorded outbound call | incomplete component trace | regenerate the exact flow with downstream capture |
+| root HTTP `500` | app/runtime issue or accepted behavior drift | inspect trace before refreshing |
+
+Repair order:
+
+1. Find active group IDs in code, config, scripts, or CI.
+2. Run the repository's real test command and record failing groups/methods.
+3. Inspect `get_test_failure_details` for the active groups.
+4. Inspect `get_script_data` when group contents or method entry IDs matter.
+5. Trigger the target endpoint or workflow explicitly to create fresh traces.
+6. Wait 30-45 seconds for BitDive indexing.
+7. Inspect fresh traces and choose replacement behavior intentionally.
+8. Replace only failing entries first with `replace_test_with_latest_trace`.
+9. Re-run the same test command.
+10. Broaden only if targeted repair is insufficient.
+
+Smallest safe repair:
+
+| Case | Preferred action |
+|---|---|
+| one method changed | replace one method entry |
+| multiple failures from one accepted change | update failed tests only |
+| whole service contract changed intentionally | update the existing service group |
+| active group is dead or unusable | create or auto-generate a new group and wire it immediately |
+| environment/auth/runtime failure | fix environment first; do not refresh baseline |
+
+Always trigger fresh traces explicitly for the repair task:
+
+1. hit the endpoint or workflow
+2. record the direct runtime result
+3. wait for indexing
+4. inspect the exact fresh trace
+5. refresh from that trace
+
+Do not refresh from "latest available" unless you intentionally just generated
+that latest trace. Otherwise you can accidentally promote unrelated behavior.
+
+## Rebuilding From Scratch
+
+Use this only if old groups are intentionally gone or unusable:
+
+1. Verify target service health.
+2. Trigger representative safe endpoints or workflows.
 3. Wait 30-45 seconds.
-4. Use `get_last_calls` to collect the fresh call IDs.
-5. Create one `UNIT` group and one `COMPONENT` group.
-6. Put those two UUIDs into `TestControllerTestAbstract.java`.
-7. Run `./mvnw.cmd -pl <module> test`.
-
-Notes:
-- BitDive may also create downstream companion groups for other services present in the trace.
-- Those extra groups are not the primary UUIDs for the module under test.
-- The Java test entrypoint should reference the module's own UNIT and COMPONENT group UUIDs.
-
----
+4. Collect fresh call IDs.
+5. Create the intended group or groups.
+6. Wire new IDs into the repository's replay-test entrypoint.
+7. Run the real test command.
+8. Inspect `get_test_failure_details` to confirm green state.
 
 ## Guardrails
 
 Do not:
-- delete all BitDive test groups unless the user explicitly asks
-- replace BitDive replay coverage with ad-hoc smoke tests as the final solution
-- use stale UUIDs after recreating groups
-- assume `INTEGRATION` is required when `COMPONENT` is the repo convention
+- Delete or disable groups unless explicitly requested.
+- Refresh all baselines to hide an unexplained failure.
+- Use stale group IDs after recreating groups.
+- Replace replay coverage with ad-hoc smoke tests as the final solution.
+- Assume `UNIT` plus `COMPONENT` is universal.
+- Assume Java/Maven paths in non-Java projects.
 
 Do:
-- inspect runtime traces before changing baselines
-- keep UUIDs in code aligned with the groups Maven is meant to execute
-- verify the final state with Maven, not only with BitDive UI/API
-- treat the current UNIT/COMPONENT pair in `TestControllerTestAbstract.java` as the authoritative active baseline
-
----
+- Derive runtime names from BitDive.
+- Keep generated group IDs wired into code/config immediately.
+- Verify final state with the repository's real test command.
+- Keep the refresh scope as small as the accepted behavior change allows.
 
 ## Completion Checklist
 
-Before you finish:
+Before finishing:
 
-1. `TestControllerTestAbstract.java` exists and references the correct two UUIDs.
-2. UNIT UUID and COMPONENT UUID both exist in BitDive.
-3. The module tests pass with `./mvnw.cmd -pl <module> test`.
-4. Any old fallback tests created outside the BitDive pattern are removed.
-5. If a method was regenerated, `get_script_data` was checked for unexpected noisy duplication.
-
-## Session Handoff Note
-
-After creating a new UNIT/COMPONENT pair for a module:
-- update `TestControllerTestAbstract.java` immediately
-- treat that UUID pair as the active baseline for the rest of the session
-- do not keep using older groups or older call IDs as if they were still authoritative
+1. Active group IDs are known and wired into the project.
+2. Referenced groups exist in BitDive.
+3. The real test command passes or remaining failures are explained.
+4. Fresh trace IDs used for refresh are recorded.
+5. Broad refreshes were explicitly justified.

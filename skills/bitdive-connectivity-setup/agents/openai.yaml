@@ -1,0 +1,6 @@
+interface:
+  display_name: "BitDive Connectivity Setup"
+  short_description: "Fix BitDive MCP and service connectivity"
+  default_prompt: "Use $bitdive-connectivity-setup to connect this agent or service to the intended BitDive backend. Check MCP config, API URL, tokens, TLS, service config, Docker networking tips, and verify fresh traces."
+policy:
+  allow_implicit_invocation: true

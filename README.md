@@ -23,9 +23,12 @@ claude/agents/<agent-name>.md
 | [`add-bitdive-spring`](skills/add-bitdive-spring/SKILL.md) | Add BitDive producer and optional replay support to a Spring Boot service |
 | [`bitdive-overview`](skills/bitdive-overview/SKILL.md) | Choose the right BitDive MCP tool for discovery, inspection, and updates |
 | [`bitdive-trace-comparison`](skills/bitdive-trace-comparison/SKILL.md) | Compare traces and locate the exact point of behavior drift |
+| [`bitdive-pr-review`](skills/bitdive-pr-review/SKILL.md) | Produce a standardized PR runtime review with fixed tables, inline traces, replay regression stats, follow-ups, and merge recommendation |
+| [`bitdive-issue-finding`](skills/bitdive-issue-finding/SKILL.md) | Hunt and validate application issues with traces and probes |
+| [`bitdive-endpoint-coverage`](skills/bitdive-endpoint-coverage/SKILL.md) | Trigger safe endpoint coverage and document trace gaps |
 | [`bitdive-dev-workflow`](skills/bitdive-dev-workflow/SKILL.md) | Run a phased BitDive development workflow with human checkpoints |
 | [`bitdive-test-management`](skills/bitdive-test-management/SKILL.md) | Create, wire, repair, refresh, and rebuild replay groups |
-| [`bitdive-docker-networking`](skills/bitdive-docker-networking/SKILL.md) | Connect Dockerized services to cloud or self-hosted BitDive |
+| [`bitdive-connectivity-setup`](skills/bitdive-connectivity-setup/SKILL.md) | Connect agents and services to the intended BitDive backend, including local/self-hosted and Docker tips |
 
 ## Installation
 
@@ -132,4 +135,5 @@ These workflows are most useful when:
 - `agents/openai.yaml` is included for each skill so the set is ready for UI-facing use.
 - Claude support is stored as visible source files in `claude/agents/`, not hidden repo-local config.
 - The workflows are text-first and repository-agnostic. Project-specific names and private paths were removed.
+- Public skills must derive module names, service names, endpoints, auth, fixture data, and build/test commands from the current project at runtime.
 - If you want to publish under another license, replace the root `LICENSE` file before pushing the repository.

@@ -118,14 +118,17 @@ bitdive:
     serviceName: SERVICE_NAME
     packedScanner:
       - APPLICATION_PACKAGE
-    serverUrl: https://cloud.bitdive.io
+    serverUrl: SERVER_URL
     token: TOKEN
 ```
 
-Keep `serverUrl` exactly as provided for the target environment unless the human
-explicitly says that this service should point to a different BitDive backend.
-If a local BitDive instance is intentionally in use, see
-`bitdive-docker-networking`.
+Replace `SERVER_URL` with the address of your BitDive instance.
+- For Cloud: `https://cloud.bitdive.io` (default)
+- For Local/Docker: `https://localhost` or `https://bitdive-backend`
+
+Keep the provided `serverUrl` for the target environment. If a local, self-hosted,
+or Docker-adjacent BitDive instance is intentionally in use, see
+`bitdive-connectivity-setup` for connectivity details.
 
 ---
 

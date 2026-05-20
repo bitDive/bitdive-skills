@@ -2,8 +2,9 @@
 name: bitdive-overview
 description: >
   Reference guide for working with BitDive via MCP tools. Covers available tools,
-  the core agent interaction protocol, timing notes, and test management guidance.
-  Use this skill whenever you need to know which BitDive tool to call and when.
+  the core agent interaction protocol, raw-trace evidence, timing notes, test
+  management guidance, and redaction rules. Use this skill whenever you need to
+  know which BitDive tool to call and when.
 ---
 
 # BitDive Overview
@@ -24,8 +25,9 @@ Always follow this sequence:
 
 1. **Discover** — use `get_heatmap_all_system` or `get_last_calls` to find relevant call IDs.
 2. **Inspect** — use `find_trace_summary` to read the execution tree, SQL, REST calls, and return values.
-3. **Compare** — use `compare_traces` to verify a fix or detect drift (N+1, new downstream calls, errors).
-4. **Refresh baselines** — update trace-based test baselines only after analysis and user confirmation.
+3. **Compare** — use `compare_traces` to verify a fix or detect drift (N+1, new downstream calls, errors). See **`bitdive-trace-comparison`** for deep analysis rules.
+4. **Drill down** — use method-level or raw trace data when payloads, writes, or headers matter.
+5. **Refresh baselines** — update trace-based test baselines only after analysis and user confirmation.
 
 > [!IMPORTANT]
 > Never guess behavior from source code alone when a trace is available. Runtime evidence
@@ -59,8 +61,10 @@ Always follow this sequence:
 | Tool | Purpose |
 |---|---|
 | `find_trace_summary` | Human-readable execution tree with timings, SQL, REST, return values, errors |
-| `find_trace_all` | Full raw trace JSON for programmatic processing |
 | `find_trace_for_method` | Drill down to a specific class + method within a call |
+
+If your BitDive MCP or API exposes full raw trace retrieval, use it for payload-sensitive work.
+Treat raw trace data as sensitive because it can contain headers, cookies, tokens, and user claims.
 
 ### Diffing
 
@@ -82,8 +86,10 @@ Always follow this sequence:
 | `get_all_test_scripts` | List all test groups in BitDive |
 | `get_script_data` | Contents (methods, call IDs) of a test group |
 | `get_test_failure_details` | Why a test group failed (expected vs actual diff) |
+| `replace_test_with_latest_trace` | Replace one method entry with its latest successful trace |
+| `update_failed_tests_in_group` | Replace only failed tests in a group with latest successful traces |
 | `update_existing_test_group` | Refresh an entire test group with the latest traces |
-| `regenerate_tests_by_call_for_test_script` | Replace tests for a single method with a new call ID |
+| `create_test_group` | Create a new group from selected call IDs |
 | `auto_generate_tests_for_service` | Create a brand-new test group from the latest service traces |
 
 ---
@@ -104,8 +110,9 @@ Always follow this sequence:
 ## Test Management Guidelines
 
 - **Prefer updating existing test groups** over creating new ones.
-  Check `TestControllerTestAbstract.java` for the UUID list that Maven actually runs.
-- Use `regenerate_tests_by_call_for_test_script` to refresh **one failing method**.
+  Check the repository's replay-test wiring for the group IDs the real test command runs.
+- Use `replace_test_with_latest_trace` to refresh **one failing method**.
+- Use `update_failed_tests_in_group` when only current failures should be refreshed.
 - Use `update_existing_test_group` for a **broad expected refresh** of a whole service.
 - Use `auto_generate_tests_for_service` only when **no test group exists yet**.
 
@@ -120,3 +127,15 @@ Always follow this sequence:
 Prefer deriving `module_name` and `service_name` from BitDive at runtime via
 `get_heatmap_all_system` rather than hardcoding them. Names in BitDive may differ
 from Docker service names or Spring `spring.application.name` values.
+
+## Redaction Rules
+
+Before sharing trace evidence, redact:
+
+- `Authorization` headers
+- cookies and session tokens
+- MCP tokens, API keys, client secrets, passwords
+- raw JWTs and unnecessary identity claims
+
+Summarize sensitive details as "auth header present", "scope mismatch", or
+"token issuer mismatch" instead of copying secret values.

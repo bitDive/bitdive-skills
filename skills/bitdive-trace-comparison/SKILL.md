@@ -4,7 +4,8 @@ description: >
   Practical guide for comparing BitDive traces through MCP and raw trace data.
   Covers when to use compare_traces vs find_trace_summary vs find_trace_all,
   how to analyze request/response contracts and downstream payload drift, and
-  common pitfalls such as token scope mismatches and noisy fields.
+  common pitfalls such as token scope mismatches, noisy fields, contaminated
+  baselines, and sensitive trace data.
 ---
 
 # BitDive Trace Comparison
@@ -87,8 +88,12 @@ Follow this order by default:
 1. Identify the relevant `call_id` values.
 2. Run `find_trace_summary` on both traces.
 3. Run `compare_traces(before, after)`.
-4. If payload meaning matters, inspect `find_trace_all` for both traces.
-5. Classify the change as:
+4. If payload meaning matters, inspect raw trace data or method-level traces for both calls.
+5. Extract the first meaningful divergence point.
+6. Classify baseline quality and the change type.
+7. Redact sensitive data before reporting.
+
+Classify the change as:
    - root contract drift
    - downstream contract drift
    - internal transformation drift
@@ -96,6 +101,12 @@ Follow this order by default:
    - hidden error drift
 
 Do not rely on one tool alone when the change is payload-sensitive.
+
+Baseline quality labels:
+- `CLEAN`
+- `CONTAMINATED_BY_PREEXISTING_BUG`
+- `CONTAMINATED_BY_ENV_OR_DOWNSTREAM`
+- `TOOLING_GAP`
 
 ## What To Compare
 
@@ -192,6 +203,43 @@ Examples:
 - changed downstream request body because upstream pagination changed
 - same status code but different returned business object
 
+If your MCP setup does not expose `find_trace_all`, use the closest available
+raw-trace endpoint or `find_trace_for_method` on the controller, changed service
+method, mapper, repository, and downstream client boundary.
+
+For the top 1-3 important scenarios in a PR review or regression investigation,
+raw or method-level inspection is mandatory. Summaries alone are not enough to
+prove write intent, downstream payload drift, or the first divergence point.
+
+## First Divergence
+
+Find the earliest point where behavior meaningfully changes:
+
+- controller args or request body
+- validation branch
+- mapper output
+- repository write intent
+- downstream request payload
+- downstream response handling
+- root return value
+
+Report the first divergence separately from downstream consequences. This makes
+it clear whether a later failure is the root cause or merely fallout.
+
+## Write And Downstream Delta
+
+For state-changing flows, compare:
+
+- writes that appeared or disappeared
+- persisted entity values
+- transaction boundary changes
+- side effects that still happen after an error
+- downstream calls removed, added, retried, or changed
+- downstream request bodies and status codes
+
+Do not summarize a write-sensitive fix as only `200 -> 400`; state whether invalid
+writes and downstream payload leaks were prevented.
+
 ## Common Patterns
 
 ### Clean Response Drift
@@ -258,6 +306,20 @@ Do not compare raw API results and MCP tool results unless they use the same:
 If one token sees a trace and another returns `{}`, that is not a trace diff.
 It is an access-scope difference.
 
+### Leaking Sensitive Trace Data
+
+Raw traces can contain:
+
+- bearer tokens
+- cookies
+- API keys
+- client secrets
+- JWT claims
+- internal customer or user identifiers
+
+Redact these before final output. Prefer describing the relevant auth fact, such
+as "downstream returned insufficient scope", instead of copying headers.
+
 ### Treating Summary As Source Of Truth
 
 `find_trace_summary` is for orientation, not final payload conclusions.
@@ -312,6 +374,8 @@ A comparison is complete only when you can state:
 1. what changed
 2. where it changed in the chain
 3. whether it looks intentional, suspicious, or broken
-4. whether the current MCP diff was sufficient or raw trace was required
+4. whether the baseline was clean or contaminated
+5. whether the current MCP diff was sufficient or raw trace was required
+6. what sensitive data was redacted or avoided
 
-If you cannot answer those four points, the comparison is not finished.
+If you cannot answer those points, the comparison is not finished.

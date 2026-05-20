@@ -1,6 +1,0 @@
-interface:
-  display_name: "BitDive Docker Networking"
-  short_description: "Connect Dockerized services to BitDive"
-  default_prompt: "Use $bitdive-docker-networking to fix BitDive connectivity for this Dockerized service."
-policy:
-  allow_implicit_invocation: true

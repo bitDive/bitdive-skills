@@ -12,7 +12,7 @@ Core tools:
 
 - `find_trace_summary` for fast overview
 - `compare_traces` for structural before/after diff
-- `find_trace_for_method` for detailed method-level inspection
+- `find_trace_for_method` or raw trace retrieval for detailed method-level inspection
 
 Default workflow:
 
@@ -20,7 +20,9 @@ Default workflow:
 2. inspect both traces with `find_trace_summary`
 3. compare them with `compare_traces`
 4. if payload meaning matters, inspect the relevant methods in detail
-5. classify the drift
+5. identify the first meaningful divergence
+6. classify the drift and baseline quality
+7. redact sensitive data before reporting
 
 What to compare:
 
@@ -29,6 +31,7 @@ What to compare:
 - downstream HTTP calls and payloads
 - persistence behavior
 - hidden child errors and timing shifts
+- write intent and downstream payload changes
 
 Use detailed method inspection when:
 
@@ -49,6 +52,7 @@ Common pitfalls:
 - comparing traces from different environments or token scopes
 - treating summary output as final proof for field-level behavior
 - treating generated ids or timestamps as business drift by default
+- leaking bearer tokens, cookies, API keys, client secrets, or raw JWT claims
 
 Success criteria:
 
@@ -56,3 +60,4 @@ Success criteria:
 - state where in the chain it changed
 - state whether it looks intentional, suspicious, or broken
 - state whether the evidence came from summary, structural diff, or detailed method inspection
+- state whether the baseline was clean, contaminated, or blocked by tooling
