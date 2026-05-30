@@ -16,7 +16,7 @@ the baseline only after explicit human confirmation.
 
 > [!IMPORTANT]
 > When you trigger a new request to generate a trace, always wait **at least 30 seconds**
-> before calling `get_last_calls` or `find_trace_summary`. Traces are indexed asynchronously.
+> before calling `list_recent_calls` or `get_trace_overview`. Traces are indexed asynchronously.
 
 ---
 
@@ -57,20 +57,20 @@ Detect and run the repository's real test command. Examples:
 
 Then inspect results in BitDive:
 ```
-get_test_failure_details(test_script_id="<uuid>")
+get_test_results(test_script_id="<uuid>")
 ```
 
 Then inspect the current stable trace for the target method:
 ```
-get_last_calls(module_name="<MODULE>", service_name="<SERVICE>")
-find_trace_summary(call_id="<before-call-id>")
+list_recent_calls(module_name="<MODULE>", service_name="<SERVICE>")
+get_trace_overview(call_id="<before-call-id>")
 ```
 
 Phase 1 report must include:
 - baseline test status
-- Response body (JSON schema and values)
-- Number of SQL queries and REST calls
-- Any existing warnings or performance issues
+- response body (JSON schema and values)
+- number of SQL queries and REST calls
+- any existing warnings or performance issues
 - active replay group IDs for the affected module or service
 
 Stop here and report. Do not implement yet unless the user asks to continue.
@@ -83,18 +83,18 @@ Stop here and report. Do not implement yet unless the user asks to continue.
 
 > [!IMPORTANT]
 > For response-level changes, do not rely on `compare_traces` alone to prove the
-> payload changed. Use `find_trace_summary` on both the baseline and the fresh trace
-> and compare the `Return` value directly. Treat `compare_traces` as the secondary
+> payload changed. Open `get_trace` on both the baseline and the fresh trace and
+> compare the returned values directly. Treat `compare_traces` as the secondary
 > tool for structural, SQL, REST, and timing differences.
 
 Trigger the endpoint. Use the reproduction tool to get the exact replay command:
 ```
-get_reproduction_command(call_id="<before-call-id>")
+get_replay_command(call_id="<before-call-id>")
 ```
 
 Execute the command, then **wait ~30 seconds**, then find the new call ID:
 ```
-get_last_calls(module_name="<MODULE>", service_name="<SERVICE>")
+list_recent_calls(module_name="<MODULE>", service_name="<SERVICE>")
 ```
 
 Before waiting for indexing, verify the live runtime response if possible:
@@ -104,17 +104,18 @@ Before waiting for indexing, verify the live runtime response if possible:
 
 For response-level changes, the preferred verification sequence is:
 ```
-find_trace_summary(call_id="<before-call-id>")
-find_trace_summary(call_id="<after-call-id>")
+get_trace_overview(call_id="<before-call-id>")
+get_trace_overview(call_id="<after-call-id>")
 compare_traces(before_call_id="<before-id>", after_call_id="<after-id>")
+get_trace(call_id="<after-call-id>")   # when payload meaning matters
 ```
 
 Refer to **`bitdive-trace-comparison`** for detailed guidance on analyzing contract drift and persistence changes.
 
 Verify:
-- Only the intended field / behavior changed.
-- No unexpected errors or performance regressions appeared.
-- SQL query count did not increase unexpectedly.
+- only the intended field / behavior changed
+- no unexpected errors or performance regressions appeared
+- SQL query count did not increase unexpectedly
 
 Run the same `<test-command>` used in Phase 1.
 
@@ -126,7 +127,7 @@ A test referencing the affected method should now **fail** with a clear Expected
 
 Also inspect failure details:
 ```
-get_test_failure_details(test_script_id="<uuid>")
+get_test_results(test_script_id="<uuid>")
 ```
 
 Phase 2 report must include:
@@ -145,34 +146,20 @@ Do not refresh replay tests in Phase 2.
 Only enter this phase after a human explicitly confirms that the new behavior
 is correct and should become the new baseline.
 
-Update only the affected method's baseline when possible:
+Find the affected method-level test entry, then refresh it from the fresh trace:
 
 ```
-replace_test_with_latest_trace(
+list_test_group_classes(test_script_id="<uuid>")
+list_test_group_methods(test_script_data_id="<class-entry-id>")
+regenerate_test(
   script_data_test_id="<method-entry-id>",
-  module_name="<MODULE>",
-  service_name="<SERVICE>"
+  new_call_ids=["<after-call-id>"]
 )
 ```
 
-If several entries failed because of the same accepted behavior:
-
-```
-update_failed_tests_in_group(
-  test_script_id="<uuid>",
-  module_name="<MODULE>",
-  service_name="<SERVICE>"
-)
-```
-
-For a broader refresh of the whole service:
-```
-update_existing_test_group(
-  test_script_id="<uuid>",
-  module_name="<MODULE>",
-  service_name="<SERVICE>"
-)
-```
+If several entries failed because of the same accepted behavior, call
+`regenerate_test` for each affected `script_data_test_id` (find them via
+`get_test_results`). There is no single bulk-refresh call — refresh per entry.
 
 Do not create new test groups in Phase 3 unless the human explicitly requested
 a rebuild or the existing groups are dead.
@@ -181,10 +168,10 @@ Run the same `<test-command>` again.
 
 Then verify in BitDive:
 ```
-get_test_failure_details(test_script_id="<uuid>")
+get_test_results(test_script_id="<uuid>")
 ```
 
-✅ The new behavior is now the official baseline for future regressions.
+The new behavior is now the official baseline for future regressions.
 
 Phase 3 report must include:
 - which replay entries were refreshed
@@ -194,18 +181,18 @@ Phase 3 report must include:
 
 ---
 
-## Quick Reference: Which Update Tool to Use
+## Quick Reference: Which Refresh Action To Use
 
-| Situation | Tool |
+| Situation | Action |
 |---|---|
-| One method changed intentionally | `replace_test_with_latest_trace` |
-| Only currently failed methods should refresh | `update_failed_tests_in_group` |
-| Whole service refresh expected | `update_existing_test_group` |
-| No test group exists yet | `auto_generate_tests_for_service` |
+| One method changed intentionally | `regenerate_test` on that method entry |
+| Several methods broke from one accepted change | `regenerate_test` per failing entry |
+| No suitable test group exists yet | `create_test_group` from fresh `call_id`s |
 
 > [!WARNING]
-> Do not run `update_existing_test_group` on a noisy or unstable service unless a
-> broad refresh is explicitly intended. It will overwrite all method baselines at once.
+> Refresh only the entries tied to the accepted behavior change. Do not loop
+> `regenerate_test` over a whole noisy group just to turn it green — that hides
+> unrelated regressions.
 
 ## Human Checkpoint Rules
 

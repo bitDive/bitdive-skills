@@ -47,8 +47,8 @@ Prefer safe calls:
 
 For each request:
 1. Trigger direct HTTP and record status/body summary.
-2. If it should generate a trace, wait 30-45 seconds.
-3. Use `get_last_calls`, `find_trace_between_time`, or heatmap to confirm capture.
+2. If it should generate a trace, wait 30–45 seconds.
+3. Use `list_recent_calls`, `find_calls_by_method`, or `get_service_heatmap` to confirm capture.
 4. Save the call ID next to the endpoint.
 5. If the request fails, adjust params/data/auth up to a small bounded number of attempts.
 
@@ -65,7 +65,7 @@ Use a skip list instead of burying failures:
 | `AUTH_ISSUE` | Auth setup or token scope prevents coverage |
 | `SERVICE_DOWN` | Service or dependency is not running |
 | `CONFIG_ISSUE` | Routing, environment, or deployment config blocks access |
-| `TOOLING_GAP` | BitDive did not capture even though runtime request worked |
+| `TOOLING_GAP` | BitDive did not capture even though the runtime request worked |
 | `DESTRUCTIVE` | Endpoint should not be triggered without explicit permission |
 | `USER_ERROR` | Initial request shape was wrong and needs corrected docs |
 

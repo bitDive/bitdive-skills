@@ -60,7 +60,7 @@ Look for these patterns:
 ### 1. Build Coverage Map
 
 For each service, list candidate entrypoints and recent trace coverage:
-- Use `get_heatmap_for_service` and `get_last_calls`.
+- Use `get_service_heatmap` and `list_recent_calls`.
 - Trigger missing but important endpoints only when safe.
 - Mark endpoints that need data setup, auth, or non-destructive fixtures.
 
@@ -68,17 +68,18 @@ Prioritize:
 - Money movement, fulfillment, inventory, identity, customer data, and cross-service writes.
 - Endpoints with loops over downstream calls.
 - Recently changed methods.
-- High traffic or high error-rate methods from heatmap.
+- High traffic or high error-rate methods from the heatmap.
 
 ### 2. Inspect Traces
 
 For each candidate:
-- Start with `find_trace_summary`.
-- Use raw trace or `find_trace_for_method` when payload, write intent, or ownership matters.
+- Start with `get_trace_overview`.
+- Use `get_trace` (full de-noised tree) — or `get_trace_subtree` for one boundary —
+  when payload, write intent, or ownership matters.
 - Record SQL count, REST count, downstream URLs, errors, retries, and return values.
 - Compare multiple traces if the behavior may depend on data size or auth scope.
 
-Do not infer a bug from one summary line if controller validation, security filters,
+Do not infer a bug from one overview line if controller validation, security filters,
 or data setup might prevent the code path.
 
 ### 3. Probe Exact Inputs
@@ -142,7 +143,8 @@ End with:
 
 ## Redaction Rules
 
-Redact secrets before sharing:
+The server redacts secrets on the `get_trace` / `get_trace_raw` / `compare_traces`
+paths, but still double-check before sharing:
 - Bearer tokens, cookies, API keys, MCP tokens, client secrets.
 - Passwords and private auth payloads.
 - Raw JWT claims unless safe and necessary.

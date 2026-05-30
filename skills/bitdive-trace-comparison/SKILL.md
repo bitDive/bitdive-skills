@@ -1,11 +1,11 @@
 ---
 name: bitdive-trace-comparison
 description: >
-  Practical guide for comparing BitDive traces through MCP and raw trace data.
-  Covers when to use compare_traces vs find_trace_summary vs find_trace_all,
-  how to analyze request/response contracts and downstream payload drift, and
-  common pitfalls such as token scope mismatches, noisy fields, contaminated
-  baselines, and sensitive trace data.
+  Practical guide for comparing BitDive traces through MCP. Covers when to use
+  get_trace_overview vs compare_traces vs get_trace vs get_trace_raw, how to
+  analyze request/response contracts and downstream payload drift, how to find
+  the first meaningful divergence, and common pitfalls such as token scope
+  mismatches, noisy fields, contaminated baselines, and sensitive trace data.
 ---
 
 # BitDive Trace Comparison
@@ -19,7 +19,7 @@ Use it for:
 - before/after verification of one endpoint
 - payload drift across service boundaries
 - checking hidden runtime degradation under HTTP 200
-- validating whether `compare_traces` is enough or raw trace is required
+- validating whether `compare_traces` is enough or full trace data is required
 
 This skill is not limited to performance work. It is equally about:
 
@@ -29,17 +29,19 @@ This skill is not limited to performance work. It is equally about:
 - persistence behavior
 - hidden errors
 
-## Core Tools
+## Trace Detail Levels
 
-There are three main levels of trace comparison:
+There are four levels of trace access. Pick the smallest that proves your point,
+and drop down a level whenever payload meaning matters.
 
-1. `find_trace_summary`
-2. `compare_traces`
-3. `find_trace_all`
+1. `get_trace_overview` — orientation
+2. `compare_traces` — structural before/after diff
+3. `get_trace` — full, de-noised, redacted tree (the default for payload-sensitive work)
+4. `get_trace_raw` — verbatim source of truth (large)
 
-They serve different purposes.
+Use `get_trace_subtree` to scope any of the above to one `class.method`.
 
-### `find_trace_summary`
+### `get_trace_overview`
 
 Use for:
 
@@ -50,7 +52,7 @@ Use for:
 
 Limitations:
 
-- truncates or omits payload detail
+- omits full payload detail
 - not reliable as the only source for contract-level conclusions
 
 ### `compare_traces`
@@ -61,37 +63,44 @@ Use for:
 - method additions/removals
 - SQL / REST / NoSQL frequency changes
 - hidden error changes
-- contract-aware drift if the MCP server supports it
+- contract-aware drift (payloads are normalized before diffing)
 
 Limitations:
 
-- quality depends on the current MCP implementation
-- may miss important payload semantics if it only compares strings or counters
-- may over-report path noise if node matching is too positional
+- still a diff, not the full payload — confirm important deltas against `get_trace`
+- may over-report path noise if a method repeats many times
 
-### `find_trace_all`
+### `get_trace`
 
 Use for:
 
-- source-of-truth validation
 - request/response body analysis
 - intermediate method args and returns
 - downstream headers / request body / response body
 - proving exactly where a field changed
 
-If payload meaning matters, this is the authoritative input.
+This is the **default authoritative input** when payload meaning matters. It is
+the full tree with Jackson type-wrappers and `@class` noise stripped, secrets
+redacted, and child calls ordered chronologically — typically 50–65% smaller
+than `get_trace_raw` with no loss of analytical content.
+
+### `get_trace_raw`
+
+Use only when you specifically need the verbatim shape (e.g. reproducing an
+exact serialization quirk). It is the same content as `get_trace` but without
+de-noising, so it can be very large. Prefer `get_trace` for analysis.
 
 ## Recommended Workflow
 
 Follow this order by default:
 
-1. Identify the relevant `call_id` values.
-2. Run `find_trace_summary` on both traces.
+1. Identify the relevant `call_id` values (`list_recent_calls` / `find_calls_by_method`).
+2. Run `get_trace_overview` on both traces.
 3. Run `compare_traces(before, after)`.
-4. If payload meaning matters, inspect raw trace data or method-level traces for both calls.
+4. If payload meaning matters, open `get_trace` (or `get_trace_subtree`) for both calls.
 5. Extract the first meaningful divergence point.
 6. Classify baseline quality and the change type.
-7. Redact sensitive data before reporting.
+7. Double-check that no sensitive data leaks before reporting.
 
 Classify the change as:
    - root contract drift
@@ -185,9 +194,9 @@ Questions:
 - did the system degrade while still returning `200`?
 - did a cache, downstream call, or serialization path start failing?
 
-## When Raw Trace Is Mandatory
+## When Full Trace Data Is Mandatory
 
-Use `find_trace_all` directly when:
+Use `get_trace` (drop to `get_trace_raw` only for verbatim shape) when:
 
 - response body meaning matters
 - prompts or generated text changed
@@ -203,13 +212,12 @@ Examples:
 - changed downstream request body because upstream pagination changed
 - same status code but different returned business object
 
-If your MCP setup does not expose `find_trace_all`, use the closest available
-raw-trace endpoint or `find_trace_for_method` on the controller, changed service
-method, mapper, repository, and downstream client boundary.
+Scope to a boundary with `get_trace_subtree` on the controller, changed service
+method, mapper, repository, and downstream client when the full tree is large.
 
-For the top 1-3 important scenarios in a PR review or regression investigation,
-raw or method-level inspection is mandatory. Summaries alone are not enough to
-prove write intent, downstream payload drift, or the first divergence point.
+For the top 1–3 important scenarios in a PR review or regression investigation,
+full-trace inspection is mandatory. Summaries alone are not enough to prove
+write intent, downstream payload drift, or the first divergence point.
 
 ## First Divergence
 
@@ -308,21 +316,16 @@ It is an access-scope difference.
 
 ### Leaking Sensitive Trace Data
 
-Raw traces can contain:
+The server redacts bearer tokens, JWTs, cookies, and credential headers/bodies on
+the `get_trace` / `get_trace_raw` / `compare_traces` paths. Even so, double-check
+output for internal customer or user identifiers and prefer describing the
+relevant auth fact (such as "downstream returned insufficient scope") over copying
+headers.
 
-- bearer tokens
-- cookies
-- API keys
-- client secrets
-- JWT claims
-- internal customer or user identifiers
+### Treating Overview As Source Of Truth
 
-Redact these before final output. Prefer describing the relevant auth fact, such
-as "downstream returned insufficient scope", instead of copying headers.
-
-### Treating Summary As Source Of Truth
-
-`find_trace_summary` is for orientation, not final payload conclusions.
+`get_trace_overview` is for orientation, not final payload conclusions. Confirm
+payload-level claims against `get_trace`.
 
 ### Treating IDs As Business Drift
 
@@ -336,24 +339,29 @@ Usually ignore:
 
 Unless their presence or absence is itself the issue.
 
-### Over-trusting Node Order
+### Repeated Methods
 
-If the same method appears multiple times, positional child order may shift.
-Prefer matching by:
+Child calls are returned in chronological order, so positional order is reliable
+for sequencing. But when the same method appears multiple times, still match
+specific occurrences by:
 
 - method signature
 - normalized args
 - normalized return shape
 
+rather than by position alone.
+
 ## Practical Tool Selection
 
 Use this guide:
 
-- quick explanation -> `find_trace_summary`
+- quick explanation -> `get_trace_overview`
 - structural before/after diff -> `compare_traces`
-- exact payload change -> `find_trace_all`
-- validate compare output -> `compare_traces` + `find_trace_all`
-- multi-version trend -> `compare_trace_evolution`
+- exact payload change -> `get_trace`
+- verbatim raw shape -> `get_trace_raw`
+- one method boundary -> `get_trace_subtree`
+- validate compare output -> `compare_traces` + `get_trace`
+- multi-version trend -> `compare_traces_over_time`
 
 ## Good Comparison Questions
 
@@ -375,7 +383,7 @@ A comparison is complete only when you can state:
 2. where it changed in the chain
 3. whether it looks intentional, suspicious, or broken
 4. whether the baseline was clean or contaminated
-5. whether the current MCP diff was sufficient or raw trace was required
+5. whether `compare_traces` was sufficient or full trace data was required
 6. what sensitive data was redacted or avoided
 
 If you cannot answer those points, the comparison is not finished.

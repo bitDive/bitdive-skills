@@ -78,7 +78,7 @@ Check:
 - whether config is baked into the runtime artifact or read at startup
 - service startup logs for BitDive agent/producer messages
 - direct reachability from the same runtime environment
-- whether traces appear 30-45 seconds after a known request
+- whether traces appear 30–45 seconds after a known request
 
 After config changes, rebuild or restart only what the project requires. If the
 config is baked into an image or artifact, rebuild that artifact before testing.
@@ -133,10 +133,10 @@ After changing connectivity:
 
 1. Restart or reload the affected MCP client, service, or container.
 2. Verify backend health from the same environment that needs access.
-3. For MCP, call `get_heatmap_all_system`.
+3. For MCP, call `get_system_heatmap`.
 4. For application traces, trigger one safe endpoint or workflow.
-5. Wait 30-45 seconds for BitDive indexing.
-6. Confirm a fresh trace appears with `get_last_calls` or a narrow time-window lookup.
+5. Wait 30–45 seconds for BitDive indexing.
+6. Confirm a fresh trace appears with `list_recent_calls` or a narrow time-window lookup.
 
 If data is still missing:
 

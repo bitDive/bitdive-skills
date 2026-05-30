@@ -2,9 +2,9 @@
 name: bitdive-test-management
 description: >
   Guide for working with BitDive replay test groups in any repository. Covers
-  discovering active group IDs, choosing update vs recreate, repairing failed
-  baselines, wiring replay tests into the project's real test command, and
-  avoiding accidental broad baseline refreshes.
+  discovering active group IDs, choosing refresh vs recreate, repairing failed
+  baselines with regenerate_test, wiring replay tests into the project's real
+  test command, and avoiding accidental broad baseline refreshes.
 ---
 
 # BitDive Test Management
@@ -57,41 +57,53 @@ Rules:
 - Do not switch to a newer-looking group unless it is wired into the test command.
 - Use the repository's existing package, naming, and test style.
 
+## MCP Tools For Test Management
+
+```text
+list_test_groups()                              # all groups: id, name, type, enabled, pass/fail
+list_test_group_classes(test_script_id="<uuid>")          # class-level entries in a group
+list_test_group_methods(test_script_data_id="<class-entry-id>")  # method-level tests -> script_data_test_id
+get_test_results(test_script_id="<uuid>")       # pass/fail + expected-vs-actual failure detail
+create_test_group(name="<name>", test_type="<UNIT|COMPONENT|INTEGRATION>", call_id_list=[...])
+regenerate_test(script_data_test_id="<method-entry-id>", new_call_ids=[...])  # refresh one test from fresh traces
+set_test_group_enabled(test_script_id="<uuid>", enabled=true|false)
+delete_test_group(test_script_id="<uuid>")
+```
+
+Discovery helpers used alongside these:
+
+```text
+list_recent_calls(module_name="<module>", service_name="<service>")
+find_calls_by_method(class_name="<fqcn>", method_name="<m>", begin_date="...", end_date="...")
+get_trace_overview(call_id="<call-id>")
+get_replay_command(call_id="<call-id>")
+```
+
+> [!NOTE]
+> The published MCP server refreshes baselines through **`regenerate_test`**, which
+> replaces one method-level test (`script_data_test_id`) with a new set of
+> `call_id`s. There is no single bulk "refresh whole group" call — refresh several
+> methods by calling `regenerate_test` per failing entry.
+
 ## Default Workflow
 
 Follow this sequence:
 
 1. Find active group IDs in the repository.
 2. Run the real test command and capture current status.
-3. Inspect failures with `get_test_failure_details`.
-4. Trigger or find fresh successful traces for the affected methods.
-5. Prefer updating existing groups over creating new ones.
-6. Re-run the same test command.
-7. Inspect group metadata if a targeted update could have duplicated entries.
+3. Inspect failures with `get_test_results`.
+4. Identify the failing method entries (`script_data_test_id`) via `list_test_group_classes` -> `list_test_group_methods`.
+5. Trigger or find fresh successful traces for the affected methods and capture their `call_id`s.
+6. Refresh each affected method with `regenerate_test(script_data_test_id, new_call_ids=[fresh_call_id])`.
+7. Re-run the same test command.
+8. Inspect group metadata if a targeted refresh could have changed unrelated entries.
 
-Canonical MCP tools:
-
-```text
-get_all_test_scripts()
-get_script_data(test_script_id="<uuid>")
-get_script_data_test(test_script_data_id="<id>")
-get_test_failure_details(test_script_id="<uuid>")
-get_last_calls(module_name="<module>", service_name="<service>")
-find_trace_summary(call_id="<call-id>")
-replace_test_with_latest_trace(script_data_test_id="<method-entry-id>", module_name="<module>", service_name="<service>")
-update_failed_tests_in_group(test_script_id="<uuid>", module_name="<module>", service_name="<service>")
-update_existing_test_group(test_script_id="<uuid>", module_name="<module>", service_name="<service>")
-create_test_group(name="<name>", test_type="<type>", call_id_list=[...])
-auto_generate_tests_for_service(module_name="<module>", service_name="<service>", test_type="<type>")
-```
-
-## Update vs Recreate
+## Refresh vs Recreate
 
 Default rule:
-- Use `replace_test_with_latest_trace` for one changed method.
-- Use `update_failed_tests_in_group` when only currently failed entries should refresh.
-- Use `update_existing_test_group` for an intentional broad refresh of a whole service.
-- Use `auto_generate_tests_for_service` or `create_test_group` only when no valid group exists.
+- Refresh **one changed method** -> `regenerate_test` for that `script_data_test_id`.
+- Refresh **several methods** that broke from the same accepted change -> call `regenerate_test` for each failing entry (loop over the failing `script_data_test_id`s from `get_test_results`).
+- Create a **new group** only when no valid group exists -> `create_test_group`.
 
 Recreate groups only when:
 - Prior groups were intentionally deleted.
@@ -103,10 +115,10 @@ Do not create extra groups just because a test failed once.
 
 ## Timing Rules
 
-After triggering a new request, wait at least 30-45 seconds before querying:
-- `get_last_calls`
-- `get_heatmap_for_service`
-- `find_trace_between_time`
+After triggering a new request, wait at least 30–45 seconds before querying:
+- `list_recent_calls`
+- `get_service_heatmap`
+- `find_calls_by_method`
 
 BitDive indexing is asynchronous. Missing fresh traces immediately after a request
 does not mean the request failed.
@@ -146,8 +158,8 @@ Rules:
 
 ## Repairing A Red Baseline
 
-Use the smallest defensible repair. Do not regenerate or refresh broadly until
-you understand why the baseline is red.
+Use the smallest defensible repair. Do not regenerate broadly until you
+understand why the baseline is red.
 
 Fast triage:
 
@@ -165,12 +177,12 @@ Repair order:
 
 1. Find active group IDs in code, config, scripts, or CI.
 2. Run the repository's real test command and record failing groups/methods.
-3. Inspect `get_test_failure_details` for the active groups.
-4. Inspect `get_script_data` when group contents or method entry IDs matter.
+3. Inspect `get_test_results` for the active groups.
+4. Inspect `list_test_group_classes` / `list_test_group_methods` to get the failing method entry IDs.
 5. Trigger the target endpoint or workflow explicitly to create fresh traces.
-6. Wait 30-45 seconds for BitDive indexing.
-7. Inspect fresh traces and choose replacement behavior intentionally.
-8. Replace only failing entries first with `replace_test_with_latest_trace`.
+6. Wait 30–45 seconds for BitDive indexing.
+7. Inspect fresh traces (`get_trace_overview` / `get_trace`) and choose the replacement intentionally.
+8. Refresh only the failing entries with `regenerate_test`.
 9. Re-run the same test command.
 10. Broaden only if targeted repair is insufficient.
 
@@ -178,10 +190,10 @@ Smallest safe repair:
 
 | Case | Preferred action |
 |---|---|
-| one method changed | replace one method entry |
-| multiple failures from one accepted change | update failed tests only |
-| whole service contract changed intentionally | update the existing service group |
-| active group is dead or unusable | create or auto-generate a new group and wire it immediately |
+| one method changed | `regenerate_test` on that one method entry |
+| multiple failures from one accepted change | `regenerate_test` per failing entry |
+| whole service contract changed intentionally | `regenerate_test` per entry, or recreate the group from clean traces |
+| active group is dead or unusable | `create_test_group` and wire it immediately |
 | environment/auth/runtime failure | fix environment first; do not refresh baseline |
 
 Always trigger fresh traces explicitly for the repair task:
@@ -190,10 +202,10 @@ Always trigger fresh traces explicitly for the repair task:
 2. record the direct runtime result
 3. wait for indexing
 4. inspect the exact fresh trace
-5. refresh from that trace
+5. refresh from that trace's `call_id`
 
-Do not refresh from "latest available" unless you intentionally just generated
-that latest trace. Otherwise you can accidentally promote unrelated behavior.
+Do not refresh from a "latest available" trace unless you intentionally just
+generated it. Otherwise you can accidentally promote unrelated behavior.
 
 ## Rebuilding From Scratch
 
@@ -201,12 +213,12 @@ Use this only if old groups are intentionally gone or unusable:
 
 1. Verify target service health.
 2. Trigger representative safe endpoints or workflows.
-3. Wait 30-45 seconds.
-4. Collect fresh call IDs.
-5. Create the intended group or groups.
+3. Wait 30–45 seconds.
+4. Collect fresh `call_id`s (`list_recent_calls`).
+5. Create the intended group(s) with `create_test_group`.
 6. Wire new IDs into the repository's replay-test entrypoint.
 7. Run the real test command.
-8. Inspect `get_test_failure_details` to confirm green state.
+8. Inspect `get_test_results` to confirm green state.
 
 ## Guardrails
 
